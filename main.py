@@ -11,20 +11,24 @@ import os
 app = FastAPI()
 
 # ===== Config =====
-DEVICE = torch.device("cpu")   # Render free = CPU only
+DEVICE = torch.device("cpu")
 IMG_SIZE = (400, 300)
 CLASS_NAMES = ['A', 'Lu', 'W']
 
-# ===== Load Single Model at Startup =====
+# ===== Model Definition =====
 def get_model():
-    model = EfficientNet.from_pretrained('efficientnet-b3')
+    model = EfficientNet.from_name('efficientnet-b3')  # IMPORTANT: no internet download
     model._fc = nn.Sequential(
         nn.Dropout(0.5),
         nn.Linear(model._fc.in_features, 3)
     )
     return model
 
-MODEL_PATH = os.path.join("models", "Fold1_Best.pth")
+# ===== Load Model =====
+MODEL_PATH = "models/Fold1_Best.pth"
+
+if not os.path.exists(MODEL_PATH):
+    raise RuntimeError(f"Model file not found: {MODEL_PATH}")
 
 model = get_model()
 model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
@@ -42,19 +46,16 @@ transform = transforms.Compose([
     )
 ])
 
-# ===== Prediction Function =====
+# ===== Prediction =====
 def predict(img: Image.Image):
-    img_t = transform(img).unsqueeze(0).to(DEVICE)
+    img_t = transform(img).unsqueeze(0)
 
     with torch.no_grad():
         outputs = model(img_t)
         probs = F.softmax(outputs, dim=1)
         conf, pred = torch.max(probs, 1)
 
-    predicted_class = CLASS_NAMES[pred.item()]
-    confidence = float(conf.item())
-
-    return predicted_class, confidence
+    return CLASS_NAMES[pred.item()], float(conf.item())
 
 # ===== API Endpoint =====
 @app.post("/detect")
@@ -64,7 +65,7 @@ async def detect(file: UploadFile = File(...)):
 
     pred_class, confidence = predict(img)
 
-    # Return JSON compatible with your Streamlit summary page
+    # Return structure compatible with your Streamlit UI
     return {
         "success": True,
         "classification": {
