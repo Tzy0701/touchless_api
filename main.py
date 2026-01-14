@@ -23,14 +23,9 @@ def get_model():
     return model
 
 models = []
-model_paths = glob.glob("models/Fold*_Best.pth")
-
-for p in model_paths:
-    m = get_model()
-    state = torch.load(p, map_location=DEVICE)
-    m.load_state_dict(state)
-    m.eval()
-    models.append(m)
+model = get_model()
+model.load_state_dict(torch.load("Fold1_Best.pth", map_location="cpu"))
+model.eval()
 
 print(f"✅ Loaded {len(models)} ensemble models")
 
